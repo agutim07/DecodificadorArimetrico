@@ -13,34 +13,71 @@ import java.util.Scanner;
 
 public class Main {
 
-    public static int DECIMALS = 128;
+    public static int DECIMALS = 600;
 
     public static void main(String[] args) throws FileNotFoundException {
 
-        File file = new File("D:\\ULE\\3º\\SI\\datos_4.txt");
+        File file = new File("D:\\Alberto GM\\ULE\\3º\\SI\\datos_3.txt");
 
         /** FUENTE DE INFORMACIÓN */
         ArrayList<Alfabeto> lista = generarLista(file);
-        System.out.println("Entropía en bits: "+calcularEntropia(lista));
-
-        /** NUMERO A MENSAJE */
-        BigDecimal num = new BigDecimal("0.938434993679600223922608511494132796026424143844362665527995868729657277");
-        int longuitud=57;
         dividirFuente(lista);
+        ArrayList<Character> listaChar = generarListaChar(file);
 
-        String msg = calcularMensaje(longuitud, num, lista);
-        System.out.println("El mensaje codificado es: "+msg);
+        /** CODIFICAR */
+        BigDecimal out = descodificar(lista, listaChar);
+        System.out.println(out);
+    }
 
-        /** INFO DE LA FUENTE EXTRA */
-        /*for(int i=0; i<lista.size(); i++){
-            System.out.print(lista.get(i).getChar() + " - ");
-            System.out.println(lista.get(i).getL() + " , " + lista.get(i).getH());
-        }*/
+    private static BigDecimal descodificar(ArrayList<Alfabeto> listaA, ArrayList<Character> listaC){
+        int pos = checkExist(listaA,listaC.get(0));
+        BigDecimal L = listaA.get(pos).getL();
+        BigDecimal H = listaA.get(pos).getH();
 
-        /*for(int i=0; i<lista.size(); i++){
-            System.out.print(i+1 + " - ");
-            System.out.println(lista.get(i).imprimir());
-        }*/
+        for(int i=1; i<listaC.size(); i++){
+            pos = checkExist(listaA,listaC.get(i));
+            BigDecimal Ln = listaA.get(pos).getL();
+            BigDecimal Hn = listaA.get(pos).getH();
+            BigDecimal Lj = L;
+            L = L.add((H.subtract(L)).multiply(Ln));
+            H = Lj.add((H.subtract(Lj)).multiply(Hn));
+        }
+        L = L.setScale(DECIMALS, RoundingMode.HALF_UP);
+        H = L.setScale(DECIMALS, RoundingMode.HALF_UP);
+        BigDecimal out = obtenerDescodificacion(L,H);
+        return out;
+    }
+
+    private static BigDecimal obtenerDescodificacion(BigDecimal L, BigDecimal H){
+        int lSize = Math.max(0, L.stripTrailingZeros().scale());
+        int hSize = Math.max(0, H.stripTrailingZeros().scale());
+        int dec=-1, i=1;
+
+        for(i=1; i<=lSize; i++){
+            int x = i*-1;
+            if(i<=hSize){
+                dec = getDigit(L,x);
+                dec++;
+                if(dec<getDigit(H,x)){
+                    break;
+                }
+            }else{
+                dec = getDigit(L,x);
+                dec++;
+                if(dec<10) break;
+            }
+        }
+
+        BigDecimal out;
+        if(i<=lSize){
+            out = L.setScale((i-1), RoundingMode.FLOOR);
+            BigDecimal lastDigit = (BigDecimal.valueOf(10).pow(i*-1)).multiply(BigDecimal.valueOf(getDigit(L,dec)));
+            out=out.add(lastDigit);
+        }else{
+            out = L;
+        }
+
+        return out;
     }
 
     private static ArrayList<Alfabeto> generarLista(File file) throws FileNotFoundException {
@@ -78,7 +115,29 @@ public class Main {
         return lista;
     }
 
+    private static ArrayList<Character> generarListaChar(File file) throws FileNotFoundException {
+        Scanner sc = new Scanner(file);
+        ArrayList<Character> lista = new ArrayList<>();
+
+        while (true) {
+            String nxt = sc.nextLine();
+            for(int i=0; i<nxt.length(); i++){
+                char c = nxt.charAt(i);
+                lista.add(c);
+            }
+
+            if(sc.hasNextLine()){
+                lista.add(' ');
+            }else{
+                break;
+            }
+        }
+
+        return lista;
+    }
+
     private static int checkExist(ArrayList<Alfabeto> list, char c){
+        if(c==' ') c='⎵';
         for(int i=0; i<list.size(); i++){
             if(list.get(i).getChar()==c){ return i; }
         }
@@ -86,50 +145,12 @@ public class Main {
         return -1;
     }
 
-    private static double calcularEntropia(ArrayList<Alfabeto> list){
-        double ent = 0.0;
-        for(int i=0; i<list.size(); i++){
-            double prob = list.get(i).getProbabilidad();
-            double log = (Math.log(1/prob) / Math.log(2));
-            ent+= (prob * log);
-        }
-        return redondearDecimal(ent,5);
-    }
-
-    private static String calcularMensaje(int lon, BigDecimal num, ArrayList<Alfabeto> list){
-        String[] msg = new String[lon];
-        BigDecimal numActual = num;
-        for(int i=0; i<lon; i++){
-            BigDecimal Lj = new BigDecimal(0);
-            BigDecimal Hj = new BigDecimal(0);
-            for(int x=0; x<list.size(); x++){
-                int bool = numActual.compareTo(list.get(x).getL());
-                int bool2 = numActual.compareTo(list.get(x).getH());
-                if(bool>=0 && bool2==-1){
-                    Lj = list.get(x).getL();
-                    Hj = list.get(x).getH();
-                    msg[i] = String.valueOf(list.get(x).getChar());
-                    break;
-                }
-            }
-            numActual = (numActual.subtract(Lj)).divide(Hj.subtract(Lj), DECIMALS, RoundingMode.HALF_UP);
-        }
-
-        /** STRING[] A STRING */
-        StringBuffer sb = new StringBuffer();
-        for(int i = 0; i < msg.length; i++) {
-            if(msg[i].equals("⎵")) msg[i]=" ";
-            sb.append(msg[i]);
-        }
-
-        return sb.toString();
-    }
-
     private static void dividirFuente(ArrayList<Alfabeto> lista){
         int total=0;
         for(int i=0; i<lista.size(); i++){
             total+=lista.get(i).getFrecuencia();
         }
+        System.out.println(total);
         BigDecimal div = new BigDecimal(1).divide(BigDecimal.valueOf(total), DECIMALS, RoundingMode.HALF_UP);
         BigDecimal actualDiv= BigDecimal.valueOf(0);
         for(int i=0; i<lista.size(); i++){
@@ -137,10 +158,19 @@ public class Main {
             if(i==lista.size()-1) nxtDiv= BigDecimal.valueOf(1);
             lista.get(i).setLH(actualDiv,nxtDiv);
             actualDiv=nxtDiv;
-            /*if(lista.get(i).getChar()=='n'){
-                System.out.println(lista.get(i).getChar()+"- "+ lista.get(i).getL() +" - "+ lista.get(i).getH());
-            }*/
         }
+    }
+
+    public static int getDigit(BigDecimal bd, int position) {
+        BigDecimal multiplier = BigDecimal.ONE.divide(BigDecimal.TEN);
+        if (position < 0) {
+            position = -position;
+            multiplier = BigDecimal.TEN;
+        }
+        BigDecimal power = multiplier.pow(position);
+        BigDecimal value = bd.abs().multiply(power).remainder(BigDecimal.TEN);
+
+        return value.intValue();
     }
 
     private static void cambioDeLinea(ArrayList<Alfabeto> list){
